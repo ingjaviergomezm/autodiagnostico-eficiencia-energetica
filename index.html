@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aplicación de Autodiagnóstico Energético Nivel 1 (ISO 50001) - UAM</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-sankey/0.12.3/d3-sankey.min.js"></script>
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+
+<body>
+  <header>
+    <div class="brand">
+      <h1>Aplicación de Autodiagnóstico Energético (ISO 50001)</h1>
+      <div class="subtitle">Herramienta de gestión y optimización de consumo</div>
+    </div>
+    <div style="display: flex; gap: 1rem; align-items: center;">
+      <nav class="main-nav">
+        <button id="nav-dashboard" class="nav-btn active">Calculadora</button>
+        <button id="nav-info" class="nav-btn">Metodología y Conceptos</button>
+      </nav>
+      <button id="config-button" title="Configuración">Configuración</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div id="dashboard-view" class="view-section active">
+      <!-- CARD: INTRODUCCION -->
+      <div class="card-section intro-section">
+        <h2>Bienvenido a su Asistente IA de autodiagnóstico de Eficiencia Energética</h2>
+        <p>Este sistema le permitirá realizar un autodiagnóstico preliminar de su consumo energético, alineado con los
+          principios de gestión de la norma ISO 50001. A través de la recolección de datos y el uso de inteligencia
+          artificial, identificaremos oportunidades de mejora.</p>
+
+        <details>
+          <summary style="cursor: pointer; color: var(--accent-color); font-weight: 500;">Ver detalles metodológicos
+          </summary>
+          <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+            <h3>Metodología de Cálculo</h3>
+            <p>El consumo se estima basándose en la potencia nominal, horas de uso, factor de carga y simultaneidad.</p>
+            <code class="formula"
+              style="background: #f8f9fa; display: block; padding: 10px; margin: 10px 0;">Consumo (Wh/mes) = Potencia (W) × Horas/Día × 30 × F. Carga × F. Simultaneidad</code>
+          </div>
+        </details>
+      </div>
+
+      <!-- CARD: DATA INPUT -->
+      <div class="card-section data-input-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h3>Inventario de Equipos y Consumo</h3>
+          <div class="tariff-input-container">
+            <label for="tarifa-energia">Tarifa (COP/Wh):</label>
+            <input type="number" id="tarifa-energia" value="0.85843" step="0.00001"
+              style="padding: 5px; border: 1px solid #ccc;">
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table id="energyDataTable">
+            <thead>
+              <tr>
+                <th>Tipo Energía</th>
+                <th>Localización</th>
+                <th>Área</th>
+                <th>Equipo</th>
+                <th>Cant.</th>
+                <th>Pot. (W)</th>
+                <th>Hrs/Día</th>
+                <th>Días/Mes</th>
+                <th>F. Carga</th>
+                <th>F. Simult.</th>
+                <th>Wh/Día</th>
+                <th>Wh/Mes</th>
+                <th>Costo (COP)</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-actions">
+          <button id="addRowButton">Agregar Fila</button>
+          <button id="calculateAndUpdateButton">Recalcular y Actualizar</button>
+        </div>
+      </div>
+
+      <!-- STATS OVERVIEW -->
+      <div class="stats-container">
+        <div class="stat-card">
+          <div class="stat-value" id="total-consumo">0</div>
+          <div class="stat-label">Consumo Total (Wh/mes)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="total-costo">$0</div>
+          <div class="stat-label">Costo Estimado (COP)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="equipos-activos">0</div>
+          <div class="stat-label">Equipos Registrados</div>
+        </div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="controls">
+        <div class="filter-group">
+          <label for="filter-energia">Tipo de Energía</label>
+          <select id="filter-energia">
+            <option value="all">Todos</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="filter-localizacion">Localización</label>
+          <select id="filter-localizacion">
+            <option value="all">Todas</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="filter-area">Área</label>
+          <select id="filter-area">
+            <option value="all">Todas</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="filter-consumo">Rango Consumo</label>
+          <select id="filter-consumo">
+            <option value="all">Todos</option>
+            <option value="low">Bajo (< 10k)</option>
+            <option value="mid">Medio (10k - 50k)</option>
+            <option value="high">Alto (> 50k)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- SANKEY DIAGRAM -->
+      <div class="card-section">
+        <h3>Diagrama de Flujo Energético (Sankey)</h3>
+        <p>Visualización de la distribución de energía desde la fuente hasta el uso final.</p>
+        <div id="chart-container" style="overflow-x: auto;">
+          <svg id="sankeyChart"></svg>
+        </div>
+        <div class="chart-ai-analysis-box">
+          <button id="analyze-sankey-button">Analizar Diagrama con IA</button>
+          <div id="sankey-llm-response" class="chart-llm-response-box">La interpretación aparecerá aquí.</div>
+        </div>
+      </div>
+
+      <!-- BAR CHART -->
+      <div class="card-section">
+        <h3>Análisis por Localización</h3>
+        <div class="chart-controls" style="margin-bottom: 15px; text-align: center;">
+          <label><input type="radio" name="barChartMode" value="consumo" checked> Consumo (Wh)</label>
+          <label style="margin-left: 15px;"><input type="radio" name="barChartMode" value="costo"> Costo (COP)</label>
+        </div>
+        <div id="barChartContainer">
+          <svg id="areaBarChart"></svg>
+        </div>
+        <div class="chart-ai-analysis-box">
+          <button id="analyze-bar-chart-button">Analizar Gráfico con IA</button>
+          <div id="bar-chart-llm-response" class="chart-llm-response-box">La interpretación aparecerá aquí.</div>
+        </div>
+      </div>
+
+      <!-- PIE CHARTS GRID -->
+      <div class="stats-container" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+        <div class="card-section">
+          <h4>Consumo por Área</h4>
+          <div id="pieAreaConsumptionContainer"><svg id="areaConsumptionPieChart"></svg></div>
+        </div>
+        <div class="card-section">
+          <h4>Costo por Fuente</h4>
+          <div id="pieEnergyTypeCostContainer"><svg id="energyTypeCostPieChart"></svg></div>
+        </div>
+        <div class="card-section">
+          <h4>Top Equipos</h4>
+          <div id="pieTopEquipmentContainer"><svg id="topEquipmentPieChart"></svg></div>
+        </div>
+      </div>
+
+      <!-- REPORT GEN -->
+      <div class="ai-report-generator-container">
+        <h3>Generador de Informe Ejecutivo</h3>
+        <p>Genere un borrador de informe basado en los datos actuales para su revisión.</p>
+        <div class="report-controls">
+          <input type="text" id="report-author" placeholder="Nombre del Auditor / Responsable">
+          <button id="generate-text-report-button">Generar Informe</button>
+        </div>
+        <div id="report-status-message" class="chart-llm-response-box" style="min-height: 100px;">El informe se generará
+          aquí.</div>
+      </div>
+
+    </div> <!-- Cierre dashboard-view -->
+
+    <!-- VISTA INFORMACIÓN -->
+    <div id="info-view" class="view-section" style="display: none;">
+      <div class="card-section">
+        <h2>¿Qué es un Sistema de Gestión de la Energía (SGE)?</h2>
+        <p>Imagina un SGE como un plan de acción personalizado para tu consumo energético. Es un conjunto de procesos y
+          herramientas que te permiten:</p>
+        <ul>
+          <li>Medir y monitorear dónde se va la energía.</li>
+          <li>Identificar oportunidades de ahorro y eficiencia.</li>
+          <li>Establecer metas y seguirlas.</li>
+          <li>Mejorar continuamente tu desempeño energético.</li>
+        </ul>
+        <p><strong>Es como llevar un presupuesto detallado, ¡pero enfocado en tu energía!</strong></p>
+      </div>
+
+      <div class="card-section">
+        <h2>La Norma ISO 50001: Tu Guía Experta</h2>
+        <p>La ISO 50001 es una norma internacional que ofrece un marco de trabajo reconocido mundialmente para
+          implementar un SGE de manera efectiva. Piensa en ella como un manual de buenas prácticas que te guía paso a
+          paso. Aunque este dashboard es una herramienta de autodiagnóstico de nivel 1 y no una certificación en sí
+          misma, se inspira en los principios de la ISO 50001 para ayudarte a comprender mejor tu energía.</p>
+      </div>
+
+      <div class="card-section">
+        <h3>¿Por Qué es Importante un SGE (Incluso Sin Certificación)?</h3>
+        <p>Adoptar un enfoque de gestión energética, incluso a pequeña escala, trae grandes beneficios:</p>
+        <ul>
+          <li><strong>Ahorro Económico:</strong> Reducir el consumo innecesario se traduce directamente en facturas más
+            bajas.</li>
+          <li><strong>Sostenibilidad Ambiental:</strong> Usar la energía de forma responsable es una contribución vital
+            para el medio ambiente.</li>
+          <li><strong>Mejora Continua:</strong> Siempre hay espacio para ser más eficientes. Un SGE te ayuda a encontrar
+            esas oportunidades.</li>
+          <li><strong>Conciencia y Cultura de Ahorro:</strong> Involucra a todos en el objetivo de usar la energía de
+            manera más inteligente.</li>
+        </ul>
+      </div>
+
+      <div class="card-section">
+        <h2>Nuestra Metodología de Cálculo</h2>
+        <p>Para ayudarte a visualizar tu consumo, esta herramienta se basa en los siguientes parámetros fundamentales:
+        </p>
+        <ul style="list-style-type: none; padding-left: 0;">
+          <li style="margin-bottom: 10px;"><strong>Potencia Nominal (W):</strong> Potencia eléctrica que consume un
+            equipo en funcionamiento.</li>
+          <li style="margin-bottom: 10px;"><strong>Horas de Uso al Día:</strong> Tiempo promedio de encendido diario.
+          </li>
+          <li style="margin-bottom: 10px;"><strong>Factor de Carga (%):</strong> Porcentaje de la potencia nominal usada
+            en promedio (ej. neveras ciclando).</li>
+          <li style="margin-bottom: 10px;"><strong>Factor de Simultaneidad (%):</strong> Ajuste si no todos los equipos
+            idénticos funcionan a la vez.</li>
+        </ul>
+        <p><strong>Fórmula de estimación mensual:</strong></p>
+        <div
+          style="background: #f1f8fc; padding: 15px; border-left: 4px solid var(--accent-color); font-family: monospace; margin: 15px 0;">
+          Consumo (Wh/mes) = Cantidad × Potencia (W) × Horas/Día × 30 × F.Carga × F.Simultaneidad
+        </div>
+        <p>La unidad utilizada es el <strong>Vatio-hora (Wh)</strong>. Los costos se proyectan multiplicando el consumo
+          total por la tarifa vigente en Pesos Colombianos (COP).</p>
+      </div>
+
+      <div class="card-section">
+        <h2>Entendiendo tu Flujo de Energía: El Diagrama de Sankey</h2>
+        <p>El gráfico principal es un <strong>Diagrama de Sankey</strong>, que visualiza el flujo desde la fuente hasta
+          el uso final:</p>
+        <ul>
+          <li><strong>Nodos:</strong> Rectángulos que representan categorías (Energía, Lugar, Área).</li>
+          <li><strong>Flujos:</strong> Bandas que conectan los nodos.</li>
+          <li><strong>Ancho del Flujo:</strong> Indica la cantidad de energía; a mayor ancho, mayor consumo.</li>
+        </ul>
+        <p>Es interactivo: usa los filtros para explorar tu perfil desde diferentes ángulos.</p>
+      </div>
+
+      <div class="card-section" style="background-color: #fcfcfc;">
+        <h3>Iniciativa de Código Abierto</h3>
+        <p>Este proyecto es una iniciativa de libre uso y código abierto bajo licencia GNU GPLv3.</p>
+        <p><strong>Autor:</strong> Javier Orlando Gómez Martínez<br>
+          <strong>Institución:</strong> Universidad Autónoma de Manizales<br>
+          <strong>Programa:</strong> Especialización en Energías Renovables y Eficiencia Energética<br>
+          <strong>Fecha:</strong> Mayo de 2025
+        </p>
+        <p><a href="#" style="color: var(--accent-color);">Enlace al Repositorio GitHub</a></p>
+      </div>
+    </div>
+
+  </div> <!-- Fin Container -->
+
+  <!-- MODAL CONFIG -->
+  <div id="config-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal">&times;</span>
+      <h2>Configuración</h2>
+      <p>Ingrese sus credenciales para habilitar las funciones de Inteligencia Artificial.</p>
+
+      <div class="input-group">
+        <label for="config-user-name">Nombre de Usuario:</label>
+        <input type="text" id="config-user-name" placeholder="Ej. Juan Pérez">
+      </div>
+
+      <div class="input-group">
+        <label for="config-api-key">Google Gemini API Key:</label>
+        <input type="password" id="config-api-key" placeholder="Pegue su API Key aquí">
+        <p class="small-text">Su clave se almacena localmente en este navegador.</p>
+      </div>
+
+      <div class="modal-buttons">
+        <button id="save-config-btn" class="primary-btn">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chart-tooltip" class="chart-tooltip" style="opacity:0;"></div>
+  <div id="sankey-tooltip" class="sankey-tooltip"></div>
+
+  <script src="js/script.js"></script>
+</body>
+
+</html>
