@@ -35,15 +35,17 @@ A través de una interfaz interactiva y el uso de **Inteligencia Artificial (Goo
 
 *   **Core**: HTML5, CSS3 (Variables CSS), JavaScript (ES6+).
 *   **Visualización de Datos**: [D3.js](https://d3js.org/) (Data-Driven Documents).
-*   **IA / LLM**: [Google Gemini API](https://ai.google.dev/).
+*   **IA / LLM**: Soporte Multi-API integrado para [Google Gemini](https://ai.google.dev/), [OpenAI (ChatGPT)](https://platform.openai.com/), y [Anthropic (Claude)](https://console.anthropic.com/).
 
 ## Guía de Uso
 
 ### 1. Configuración Inicial
 Para habilitar las funciones de Inteligencia Artificial:
 1.  Haga clic en el botón **"Configuración"** en la esquina superior derecha.
-2.  Ingrese su nombre y su **API Key de Google Gemini**.
-3.  Guarde los cambios. (Sus datos permanecen en su dispositivo).
+2.  Seleccione su **Proveedor de IA** preferido (Gemini, OpenAI o Anthropic) y el modelo específico.
+3.  Ingrese su **API Key** correspondiente.
+4.  Opcional: Configure un **Prompt Personalizado** para generar los informes.
+5.  Guarde los cambios (Todos sus datos e integraciones persisten únicamente de forma local en su dispositivo de manera segura).
 
 ### 2. Ingreso de Datos
 1.  Diríjase a la sección **"Inventario de Equipos y Consumo"**.

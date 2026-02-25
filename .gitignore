@@ -1,0 +1,11 @@
+# System files
+thumbs.db
+Thumbs.db
+.DS_Store
+
+# Local configuration (just in case they are created)
+config.js
+secrets.js
+
+# Node modules (if npm is used in the future)
+node_modules/

@@ -1,7 +1,35 @@
-
 // Variables globales
 let currentCostoPorWh = 0.85843;
 let rawData = [];
+
+// Modelos disponibles por proveedor
+const apiModels = {
+    gemini: [
+        { value: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro' },
+        { value: 'gemini-3.1-flash', label: 'Gemini 3.1 Flash' },
+        { value: 'gemini-3.0-pro', label: 'Gemini 3.0 Pro' },
+        { value: 'gemini-3.0-flash', label: 'Gemini 3.0 Flash' },
+        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+        { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+        { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+        { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }
+    ],
+    openai: [
+        { value: 'gpt-5', label: 'GPT-5' },
+        { value: 'gpt-4.5', label: 'GPT-4.5' },
+        { value: 'gpt-4o', label: 'GPT-4o' },
+        { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+        { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' }
+    ],
+    anthropic: [
+        { value: 'claude-4-6-sonnet', label: 'Claude 4.6 Sonnet' },
+        { value: 'claude-4-5-sonnet', label: 'Claude 4.5 Sonnet' },
+        { value: 'claude-4-5-opus', label: 'Claude 4.5 Opus' },
+        { value: 'claude-3-7-sonnet-latest', label: 'Claude 3.7 Sonnet' },
+        { value: 'claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet' },
+        { value: 'claude-3-5-haiku-latest', label: 'Claude 3.5 Haiku' }
+    ]
+};
 
 // Elementos de Gráficos
 let energyTableBody;
@@ -30,40 +58,87 @@ const colorScale = {
 const CONFIG_KEY = 'iso50001_app_config';
 let userConfig = {
     name: '',
-    apiKey: ''
+    apiKey: '',
+    apiProvider: 'gemini',
+    apiModel: '',
+    customPrompt: ''
 };
 
 function loadConfig() {
     const stored = localStorage.getItem(CONFIG_KEY);
     if (stored) {
         userConfig = JSON.parse(stored);
-        // Ensure the provided key is used if the stored one is missing or different
-        // This ensures the user's request "Usa esta API Key" is honored
         if (!userConfig.apiKey) {
             userConfig.apiKey = '';
+        }
+        if (!userConfig.apiProvider) {
+            userConfig.apiProvider = 'gemini';
+        }
+        if (!userConfig.apiModel) {
+            userConfig.apiModel = '';
+        }
+        if (typeof userConfig.customPrompt === 'undefined') {
+            userConfig.customPrompt = '';
         }
     }
 }
 
 function saveConfig() {
     const nameInput = document.getElementById('config-user-name');
+    const providerInput = document.getElementById('config-api-provider');
+    const modelInput = document.getElementById('config-api-model');
     const keyInput = document.getElementById('config-api-key');
+    const promptInput = document.getElementById('config-custom-prompt');
 
     userConfig.name = nameInput.value.trim();
+    userConfig.apiProvider = providerInput ? providerInput.value : 'gemini';
+    userConfig.apiModel = modelInput ? modelInput.value.trim() : '';
     userConfig.apiKey = keyInput.value.trim();
+    userConfig.customPrompt = promptInput ? promptInput.value.trim() : '';
 
     localStorage.setItem(CONFIG_KEY, JSON.stringify(userConfig));
     alert('Configuración guardada correctamente.');
     closeModal();
 }
 
+function updateModelOptions(providerSelect, modelSelect, selectedModel) {
+    if (!providerSelect || !modelSelect) return;
+    const provider = providerSelect.value;
+    const models = apiModels[provider] || [];
+
+    modelSelect.innerHTML = '';
+    models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.value;
+        opt.textContent = m.label;
+        modelSelect.appendChild(opt);
+    });
+
+    // Set selected model if it exists in the new list, otherwise default to first
+    if (selectedModel && models.some(m => m.value === selectedModel)) {
+        modelSelect.value = selectedModel;
+    } else if (models.length > 0) {
+        modelSelect.value = models[0].value;
+    }
+}
+
 function openModal() {
     const modal = document.getElementById('config-modal');
     const nameInput = document.getElementById('config-user-name');
+    const providerInput = document.getElementById('config-api-provider');
+    const modelInput = document.getElementById('config-api-model');
     const keyInput = document.getElementById('config-api-key');
+    const promptInput = document.getElementById('config-custom-prompt');
 
-    nameInput.value = userConfig.name;
-    keyInput.value = userConfig.apiKey;
+    nameInput.value = userConfig.name || '';
+    if (providerInput) {
+        providerInput.value = userConfig.apiProvider || 'gemini';
+        updateModelOptions(providerInput, modelInput, userConfig.apiModel);
+    }
+    keyInput.value = userConfig.apiKey || '';
+    if (promptInput) {
+        promptInput.value = userConfig.customPrompt || "Genera un breve informe ejecutivo de autodiagnóstico energético para {name}. Datos: {data}. Incluye: 1. Resumen de situación. 2. Tres recomendaciones concretas de ahorro. 3. Conclusión motivadora.";
+    }
 
     modal.classList.add('visible');
     modal.style.display = 'flex';
@@ -498,8 +573,8 @@ function hideTooltip() {
     if (chartTooltip) chartTooltip.style("opacity", 0);
 }
 
-// --- INTELLIGENCE ARTIFICIAL (GEMINI API) ---
-async function callGeminiAPI(prompt, targetDivId) {
+// --- INTELLIGENCE ARTIFICIAL (GEMINI/OPENAI/ANTHROPIC API) ---
+async function callAIAPI(prompt, targetDivId) {
     if (!userConfig.apiKey) {
         alert("Por favor, configure su API Key en el panel de configuración.");
         openModal();
@@ -510,25 +585,60 @@ async function callGeminiAPI(prompt, targetDivId) {
     if (targetDiv) targetDiv.textContent = "Analizando datos con IA... Espere un momento.";
 
     try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${userConfig.apiKey}`;
+        let text = "";
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: prompt }]
-                }]
-            })
-        });
-
-        const json = await response.json();
-
-        if (json.error) {
-            throw new Error(json.error.message);
+        if (userConfig.apiProvider === 'gemini') {
+            const model = userConfig.apiModel || "gemini-2.5-flash"; // Default Gemini model
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userConfig.apiKey}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+            const json = await response.json();
+            if (json.error) throw new Error(json.error.message);
+            text = json.candidates[0].content.parts[0].text;
         }
-
-        const text = json.candidates[0].content.parts[0].text;
+        else if (userConfig.apiProvider === 'openai') {
+            const model = userConfig.apiModel || "gpt-4o"; // Default OpenAI model
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userConfig.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [{ role: "user", content: prompt }]
+                })
+            });
+            const json = await response.json();
+            if (json.error) throw new Error(json.error.message);
+            text = json.choices[0].message.content;
+        }
+        else if (userConfig.apiProvider === 'anthropic') {
+            const model = userConfig.apiModel || "claude-3-7-sonnet-20250219"; // Default Anthropic model
+            // For Anthropic, we add danger flag as per their docs for browser requests
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': userConfig.apiKey,
+                    'anthropic-version': '2023-06-01',
+                    'anthropic-dangerously-allow-browser': 'true'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    max_tokens: 1024,
+                    messages: [{ role: "user", content: prompt }]
+                })
+            });
+            const json = await response.json();
+            if (json.error) throw new Error(json.error.message);
+            text = json.content[0].text;
+        }
 
         // Formateo simple de Markdown a HTML (negritas y listas)
         let formatted = text
@@ -539,8 +649,8 @@ async function callGeminiAPI(prompt, targetDivId) {
         if (targetDiv) targetDiv.innerHTML = formatted;
 
     } catch (error) {
-        console.error("Error API Gemini:", error);
-        if (targetDiv) targetDiv.textContent = "Error al consultar la IA. Verifique su API Key o conexión.";
+        console.error("Error API IA:", error);
+        if (targetDiv) targetDiv.textContent = "Error al consultar la IA. Verifique su API Key o conexión (" + error.message + ").";
     }
 }
 
@@ -573,6 +683,10 @@ function setupEventListeners() {
     // Configuración
     checkElement('config-button')?.addEventListener('click', openModal);
     checkElement('save-config-btn')?.addEventListener('click', saveConfig);
+    checkElement('config-api-provider')?.addEventListener('change', (e) => {
+        const modelSelect = document.getElementById('config-api-model');
+        updateModelOptions(e.target, modelSelect, null);
+    });
     document.querySelector('.close-modal')?.addEventListener('click', closeModal);
     window.addEventListener('click', (e) => {
         const modal = document.getElementById('config-modal');
@@ -582,13 +696,21 @@ function setupEventListeners() {
     // Botones IA
     checkElement('analyze-sankey-button')?.addEventListener('click', () => {
         const prompt = `Actua como un experto en eficiencia energética ISO 50001. Analiza estos datos: ${getDataSummary()}. Explica cómo se distribuye el flujo de energía en el diagrama de Sankey (de tipo de energía a uso final) e identifica las mayores ineficiencias.`;
-        callGeminiAPI(prompt, 'sankey-llm-response');
+        callAIAPI(prompt, 'sankey-llm-response');
     });
 
     checkElement('generate-text-report-button')?.addEventListener('click', () => {
         const authName = userConfig.name || "Usuario";
-        const prompt = `Genera un breve informe ejecutivo de autodiagnóstico energético para ${authName}. Datos: ${getDataSummary()}. Incluye: 1. Resumen de situación. 2. Tres recomendaciones concretas de ahorro. 3. Conclusión motivadora.`;
-        callGeminiAPI(prompt, 'report-status-message');
+        let basePrompt = userConfig.customPrompt;
+
+        if (!basePrompt) {
+            basePrompt = `Genera un breve informe ejecutivo de autodiagnóstico energético para {name}. Datos: {data}. Incluye: 1. Resumen de situación. 2. Tres recomendaciones concretas de ahorro. 3. Conclusión motivadora.`;
+        } else if (!basePrompt.includes('{data}')) {
+            basePrompt += `\n\nDatos de consumo:\n{data}`;
+        }
+
+        const prompt = basePrompt.replace(/\{name\}/g, authName).replace(/\{data\}/g, getDataSummary());
+        callAIAPI(prompt, 'report-status-message');
     });
 
     ['analyze-bar-chart-button', 'analyze-pie-area-button', 'analyze-pie-energy-type-button', 'analyze-pie-top-equipment-button', 'analyze-scatter-plot-button'].forEach(id => {
@@ -596,7 +718,7 @@ function setupEventListeners() {
             const prompt = `Actua como experto en energía. Analiza este gráfico específico basado en los datos globales: ${getDataSummary()}. Da una interpretación clave de 2 frases.`;
             const btn = document.getElementById(id);
             const targetId = btn.nextElementSibling.id;
-            callGeminiAPI(prompt, targetId);
+            callAIAPI(prompt, targetId);
         });
     });
 

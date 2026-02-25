@@ -293,9 +293,36 @@
       </div>
 
       <div class="input-group">
-        <label for="config-api-key">Google Gemini API Key:</label>
+        <label for="config-api-provider">Proveedor de IA:</label>
+        <select id="config-api-provider"
+          style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; margin-bottom: 5px;">
+          <option value="gemini">Google Gemini</option>
+          <option value="openai">OpenAI (ChatGPT)</option>
+          <option value="anthropic">Anthropic (Claude)</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label for="config-api-model" style="display: block; margin-top: 10px;">Modelo:</label>
+        <select id="config-api-model" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%;">
+          <!-- Opciones dinámicas -->
+        </select>
+      </div>
+
+      <div class="input-group" style="margin-top: 10px;">
+        <label for="config-api-key">API Key:</label>
         <input type="password" id="config-api-key" placeholder="Pegue su API Key aquí">
         <p class="small-text">Su clave se almacena localmente en este navegador.</p>
+      </div>
+
+      <div class="input-group" style="margin-top: 15px;">
+        <label for="config-custom-prompt">Prompt Personalizado para Reporte (Opcional):</label>
+        <textarea id="config-custom-prompt" rows="3"
+          placeholder="Ej. Escribe un informe detallado para {name}. Datos: {data}"
+          style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-family: inherit; font-size: 0.9rem; margin-top: 5px;"></textarea>
+        <p class="small-text" style="font-size: 0.8rem; color: #666; margin-top: 4px; margin-bottom: 0;">Use
+          <strong>{name}</strong> para insertar el nombre y <strong>{data}</strong> para insertar los datos. Deje en
+          blanco para usar el prompt por defecto.</p>
       </div>
 
       <div class="modal-buttons">
